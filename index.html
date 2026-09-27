@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>From M Passes to One: A MapReduce-Style Bootstrap for Pointwise Off-Policy Evaluation in Production Recommenders</title>
+<style>body{font:19px/1.6 system-ui,sans-serif;max-width:850px;margin:3rem auto;padding:0 1.2rem;color:#102a43;background:#fff}h1{font-size:2rem;line-height:1.2}h2{margin-top:2rem}a{color:#07549e}a:focus-visible{outline:3px solid #102a43;outline-offset:3px}table{border-collapse:collapse;width:100%;overflow-wrap:anywhere}th,td{padding:.65rem;border:1px solid #a9baca;text-align:left}caption{text-align:left;font-weight:bold}li{margin-block:.5rem}</style></head>
+<body><style>@media print{h1,h2,h3,caption{break-after:avoid}tr{break-inside:avoid}p{orphans:3;widows:3}}</style><main><h1>From M Passes to One: A MapReduce-Style Bootstrap for Pointwise Off-Policy Evaluation in Production Recommenders</h1>
+<p>Ghulam Ahmed Ansari and Cheng Ding, LinkedIn Corporation. RecSys 2026 Industry Track.</p>
+<p><a href="https://ahmedansari.github.io/recsys2026-ope-poster/recsys26-ope-poster.pdf">Download the print poster PDF (24 x 36 inches)</a><br>
+<a href="https://ahmedansari.github.io/recsys2026-ope-poster/poster-text-and-data.pdf">Download the text-and-data PDF (tagged)</a></p>
+<p>This page is the text alternative to the visual poster. The tagged PDF presents the same explanation and tables
+in document form; it is separate from the large-format print poster.</p>
+<nav aria-label="Poster sections"><ul>
+<li><a href="#logging">Production logging</a></li><li><a href="#bootstrap">One-pass bootstrap</a></li>
+<li><a href="#slate">Pointwise and cascade comparison</a></li><li><a href="#calibration">Score calibration</a></li>
+<li><a href="#agreement">Online agreement</a></li></ul></nav>
+<h2 id="logging">From dedicated random sessions to production logs</h2>
+<p>The deployed system combines quantile calibration, pointwise IIPS@K, and one-pass uncertainty estimation.
+It uses full-slate production logs, enabling retirement of the dedicated random-session branch.
+Position-one replay baseline: uniform-random logging (WSDM 2011), evaluated at the first position.
+Requires logging support and propensity assumptions.</p>
+<h2 id="bootstrap">Make uncertainty practical: 50 passes become one</h2>
+<p>M separate reads are replaced by one shared read. The illustration shows tile 1, tile 2, and tile M:
+same rows in every tile, with a different seeded binary mask. M = 50 replicas. Columns are mask slots,
+not slate positions. Mask slots: 0 1 0 1 → session weight 2 (illustrative).
+The illustrated masks are conceptual, not experiment data.</p>
+<ol>
+<li>Read each session once and compute g(s), the session's OPE contribution.</li>
+<li>Fan that contribution into all tiles. Sum each row's bits for its weight, then multiply g(s) by that weight.</li>
+<li>Keep replicas separate: the 50 masked accumulators collect weighted contributions separately by replica.</li>
+<li>Normalize each sum by the common mask-slot count times session-count denominator. This produces M estimates.</li>
+<li>Compute sample variance across the estimates.</li>
+</ol>
+<p>The collection line routes separate replicas; it does not pool them into one estimate.
+Masks and updates still scale with M.</p>
+<p>Within 1% relative variance error vs. same-mask multi-pass reference. M = 50 is the number of replicas; K is slate depth.
+The factorization reduces I/O passes, not a measured 50x wall-clock speedup. Detailed replica-count and dropout sweeps
+are outside this poster's scope; this comparison does not establish formal confidence-interval coverage.</p>
+<h2 id="slate">Low pointwise error through K = 60</h2>
+<p>Under the pointwise assumption, reward at a position depends on its item without modeling dependence on preceding items.
+Pointwise IPS is established prior work; the empirical comparison tests its suitability for this Feed workload.</p>
+<p>Pointwise has lower error here; cause not isolated. Unstable sequential weights are one possible reason. Higher nMSE alone does not distinguish weight instability,
+propensity error, and a misspecified dependence model, or prove that cross-position reward effects are absent.</p>
+<table><caption>Normalized mean squared error: Feed composite engagement against independent on-policy logs; lower is better.</caption>
+<tr><th scope="col">Slate depth K</th><th scope="col">Pointwise IIPS@K</th><th scope="col">Cascade RI-IPS@K</th></tr>
+<tr><th scope="row">1</th><td>1.8e-6</td><td>2.1e-6</td></tr>
+<tr><th scope="row">10</th><td>2.0e-6</td><td>3.4e-5</td></tr>
+<tr><th scope="row">20</th><td>4.1e-6</td><td>1.7e-4</td></tr>
+<tr><th scope="row">60</th><td>6.8e-6</td><td>2.9e-3</td></tr></table>
+<p>These values are from the accepted paper's composite-engagement ablation table. The poster uses a logarithmic vertical axis,
+linear K spacing, and distinct colors, marker shapes, and line styles. Pointwise error stays low through K = 60;
+the tested cascade estimator deteriorates. This is a workload-specific finding, not a universal ranking of assumptions.</p>
+<h2 id="calibration">Calibrate scores before computing propensities</h2>
+<p>Across ranker versions, objective re-weights can change score scales. Raw model scores (logits) passed directly to
+softmax can confuse scale changes with preference changes. The calibrated path is: equal-population score bins
+(quantile bins with equal item counts), observed response rates, then softmax. The resulting propensity estimates
+are used for weighting. Calibrate candidate and logging rankers separately.
+Weight: candidate / logging probability (πe / πl). Softmax is retained.</p>
+<p>The schematic is conceptual; it contains no measured score distributions. Rank-preserving re-scaling is the lemma's
+guarantee. Arbitrary re-weights may change order; exact raw-to-calibrated AUC preservation is not asserted.</p>
+<table><caption>Section 6.4: agreement with online direction in two comparisons across three ranker generations.</caption>
+<tr><th scope="col">Comparison</th><th scope="col">Raw-score policy</th><th scope="col">Calibrated policy</th></tr>
+<tr><th scope="row">Within-regime</th><td>Matches</td><td>Matches</td></tr>
+<tr><th scope="row">Across re-weight</th><td>Differs</td><td>Matches</td></tr>
+</table><p>Online-direction agreement: 1/2 → 2/2. The within-regime comparison is M2 versus M1; the across-reweight comparison is
+M3 versus M2. This small ablation is separate from the promotion-parity cohorts below.</p>
+<h2 id="agreement">Does the complete system agree with online outcomes?</h2>
+<table><caption>Offline-online agreement (called parity in the paper): matching the online direction and significance verdict.</caption>
+<tr><th scope="col">Method / surface</th><th scope="col">Matches</th><th scope="col">Rate</th><th scope="col">Wilson 95% interval</th></tr><tr><th scope="row">Position-one replay baseline</th><td>2/11</td><td>18%</td><td>5-48%</td></tr>
+<tr><th scope="row">Bootstrap IIPS@K</th><td>7/11</td><td>64%</td><td>35-85%</td></tr>
+<tr><th scope="row">Suggested Post</th><td>9/12</td><td>75%</td><td>47-91%</td></tr></table>
+<p>The first two rows compare the same 11 second-pass pairs: 64% (7/11) versus 18% (2/11).
+Suggested Post is a separate 12-comparison model set. Combined offline-online agreement (two surfaces): 70% (16/23), Wilson 95% CI 49-84%.
+Kendall rank correlation (tau) is +0.29 (p=0.04) in a broader set of 26 model comparisons with both estimates populated.</p>
+<h2>Limits and interpretation</h2>
+<h3>Comparison limits</h3><p>Logging data and evaluated positions differ. Small model sets; logging support assumed.</p>
+<h3>Remaining limitations</h3><p>Earlier candidate-selection bias is not corrected. Overall agreement is not attributed to each component.</p>
+<h2>Presentation and citation</h2><p>P1, Tuesday September 29, 2026, Atrium / Trees. Presentation windows: 10:00-10:45 AM and 3:30-4:00 PM, Minneapolis local time.
+Set up 9:00-10:00 AM; remove at 4:00 PM.</p>
+<p><a href="https://programs.sigchi.org/recsys/2026/program/content/270632">Official conference listing</a><br>Paper DOI: 10.1145/3773078.3831911.</p>
+</main></body></html>
