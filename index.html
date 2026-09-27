@@ -70,9 +70,10 @@ M3 versus M2. This small ablation is separate from the promotion-parity cohorts 
 <p>The first two rows compare the same 11 second-pass pairs: 64% (7/11) versus 18% (2/11).
 Suggested Post is a separate 12-comparison model set. Combined offline-online agreement (two surfaces): 70% (16/23), Wilson 95% CI 49-84%.
 Kendall rank correlation (tau) is +0.29 (p=0.04) in a broader set of 26 model comparisons with both estimates populated.</p>
-<h2>Limits and interpretation</h2>
-<h3>Comparison limits</h3><p>Logging data and evaluated positions differ. Small model sets; logging support assumed.</p>
-<h3>Remaining limitations</h3><p>Earlier candidate-selection bias is not corrected. Overall agreement is not attributed to each component.</p>
+<h2>Comparison scope</h2><p>The replay baseline and proposed system use different logging data and slate depths. End-to-end agreement reflects the complete system; individual contributions to that result were not isolated.</p>
+<p><strong>Candidate-selection boundary.</strong> The estimator does not correct bias from earlier candidate
+selection. It does not recover responses for candidates excluded upstream. This limits what changes can be
+evaluated from the available logs; it does not establish that estimates within the evaluated scope are wrong.</p>
 <h2>Presentation and citation</h2><p>P1, Tuesday September 29, 2026, Atrium / Trees. Presentation windows: 10:00-10:45 AM and 3:30-4:00 PM, Minneapolis local time.
 Set up 9:00-10:00 AM; remove at 4:00 PM.</p>
 <p><a href="https://programs.sigchi.org/recsys/2026/program/content/270632">Official conference listing</a><br>Paper DOI: 10.1145/3773078.3831911.</p>
